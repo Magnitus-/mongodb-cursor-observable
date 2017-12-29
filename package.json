@@ -1,0 +1,39 @@
+{
+  "name": "mongodb-cursor-observable",
+  "version": "0.1.0",
+  "description": "Mongodb cursor iterator using observable",
+  "keywords": [
+    "mongodb",
+    "cursor",
+    "observable",
+    "rxjs"
+  ],
+  "author": "Eric Vallee <eric_vallee@webificservices.com>",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/Magnitus-/mongodb-cursor-observable"
+  },
+  "bugs": {
+    "url": "http://github.com/Magnitus-/mongodb-cursor-observable",
+    "email": "eric_vallee@webificservices.com"
+  },
+  "licenses": [
+    {
+      "type": "MIT License",
+      "url": "http://mit-license.org/"
+    }
+  ],
+  "dependencies": {
+    "ramda": "^0.25.0",
+    "rxjs": "^5.5.2"
+  },
+  "scripts": {
+    "test": "nodeunit tests"
+  },
+  "devDependencies": {
+    "mongodb": "^3.0.1",
+    "nodeunit": "^0.11.2"
+  },
+  "license": "MIT"
+}

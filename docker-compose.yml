@@ -1,0 +1,21 @@
+version: "3"
+services:
+    workspace:
+        image: node:boron
+        stdin_open: true
+        tty: true
+        volumes:
+          - .:/home/node
+        working_dir: /home/node
+        user: node
+        command: bash
+        networks:
+          - net
+    database:
+        image: mongo:3.4
+        restart: always
+        networks:
+          - net
+
+networks:
+  net:
