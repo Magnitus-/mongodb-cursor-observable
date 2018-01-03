@@ -23,19 +23,27 @@ const docIfHas = R.ifElse(
 );
 
 const next$ = R.curry((cursor, batchSize) => {
-    return Rx.Observable.range(1, batchSize)
-        .mergeMap((index) => {
-            return Rx.Observable.fromPromise(cursor.next());
-        })
-        .scan((acc, doc) => {
-            return {
-                doc: doc,
-                ord: acc.ord + 1
-            }
-        }, {ord: 0})
-        .takeWhile((ordDoc) => {
-            return ordDoc.doc !== null;
-        });
+    return Rx.Observable.create(function (observer) {
+        const cursorEvents = new CursorEmitter();
+
+        Rx.Observable.fromEvent(cursorEvents, 'next')
+            .scan(R.add(1), 0)
+            .takeWhile(R.gte(batchSize))
+            .mergeMap(() => {
+                return Rx.Observable.fromPromise(cursor.next());
+            })
+            .takeWhile(R.compose(R.not, R.isNil))
+            .do(() => {
+                cursorEvents.emit('next');
+            })
+            .subscribe(
+                observer.next.bind(observer),
+                observer.error.bind(observer),
+                observer.complete.bind(observer)
+            );
+
+        cursorEvents.emit('next');
+    });
 });
 
 const iterator$ = R.curry((cursor, batchSize, cursorEvents) => {
