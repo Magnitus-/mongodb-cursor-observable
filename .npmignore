@@ -1,7 +1,0 @@
-.cache/
-.yarn/
-.bash_history
-.node_repl_history
-.yarnrc
-docker-compose.yml
-tests/
