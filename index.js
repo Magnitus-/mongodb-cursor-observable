@@ -4,23 +4,7 @@ const EventEmitter = require('events');
 
 class CursorEmitter extends EventEmitter {}
 
-const filterStatusGivenBatchSize = (batchSize) => {
-    return R.ifElse(
-        R.propEq('ordDoc', 'halt'),
-        R.ifElse(
-            R.pathEq(['last', 'ord'], batchSize),
-            () => 'more',
-            () => 'end'
-        ),
-        R.prop('ordDoc')
-    )
-};
-
-const docIfHas = R.ifElse(
-    R.has('doc'),
-    R.prop('doc'),
-    R.identity
-);
+const incrementOrd = R.over(R.lensProp('ord'), R.add(1));
 
 const next$ = R.curry((cursor, batchSize) => {
     return Rx.Observable.create(function (observer) {
@@ -47,18 +31,44 @@ const next$ = R.curry((cursor, batchSize) => {
 });
 
 const iterator$ = R.curry((cursor, batchSize, cursorEvents) => {
-    const cursorComplete$ = Rx.Observable.fromEvent(cursorEvents, 'complete');
-    const filterStatus = filterStatusGivenBatchSize(batchSize);
+    return Rx.Observable.create(function (observer) {
+        const cursorComplete$ = Rx.Observable.fromEvent(cursorEvents, 'complete').take(1);
+        let cursorCopy = cursor.clone();
 
-    return Rx.Observable.fromEvent(cursorEvents, 'next')
-        .takeUntil(cursorComplete$)
-        .mergeMap(() => {
-            return Rx.Observable.concat(next$(cursor, batchSize), Rx.Observable.of('halt'));
-        })
-        .scan((last, ordDoc) => {
-            return filterStatus({'ordDoc': ordDoc, 'last': last})
-        }, {ord: 0})
-        .map(docIfHas)
+        Rx.Observable.fromEvent(cursorEvents, 'next')
+            .takeUntil(cursorComplete$)
+            .mergeMap(() => {
+                return Rx.Observable.concat(
+                    next$(cursorCopy, batchSize),
+                    Rx.Observable.of(cursorCopy)
+                        .mergeMap((cursorCopy) => {
+                            if(cursorCopy.isClosed()) {
+                                return Rx.Observable.of(false);
+                            } else {
+                                return Rx.Observable.fromPromise(cursorCopy.hasNext())
+                            }
+                        })
+                        .map(R.ifElse(
+                            R.identity,
+                            () => 'more',
+                            () => 'end'
+                        ))
+                        .do((result) => {
+                            if(result === 'end') {
+                                if(!cursorCopy.isClosed()) {
+                                    cursorCopy.close();
+                                }
+                                cursorEvents.emit('complete');
+                            }
+                        })
+                )
+            })
+            .subscribe(
+                observer.next.bind(observer),
+                observer.error.bind(observer),
+                observer.complete.bind(observer)
+            )
+    });
 });
 
 const waitingCursor$ = R.curry((cursor, batchSize, batchInterval, cursorEvents) => {

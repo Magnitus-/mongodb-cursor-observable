@@ -33,6 +33,21 @@ function testNextOperator(from, to, test) {
     });
 }
 
+function testIteratorScanCallback(test, emitter) {
+    return (breakpoints, doc) => {
+        if(breakpoints[0].from <= breakpoints[0].to) {
+            test.ok(R.pathEq([0, 'from'], doc._id, breakpoints), "Expect for doc._id that " + doc._id + " === " + R.path([0, 'from'], breakpoints));
+            return R.over(R.lensPath([0, 'from']), R.add(1), breakpoints)
+        } else {
+            if(doc === 'more') {
+                emitter.emit('next');
+            }
+            test.ok(R.pathEq([0, 'breakpoint'], doc, breakpoints), "Expect for breakpoint that " + doc + " === " + R.path([0, 'breakpoint'], breakpoints));
+            return R.slice(1, Infinity, breakpoints);
+        }
+    }
+}
+
 module.exports = {
     setUp: function (callback) {
         Rx.Observable.fromPromise(
@@ -79,35 +94,105 @@ module.exports = {
             (err) => {console.log(err); throw err;},
             () => {test.done()}
         );
-    }/*,
+    },
     iterator: function(test) {
-        test.expect(0);
+        test.expect(354);
         const emitter = new lib.CursorEmitter();
         Rx.Observable.of(this.dummyCollection.find({}).batchSize(100))
         .mergeMap(lib.iterator$(R.__, 100,  emitter))
+        .scan(
+            testIteratorScanCallback(test, emitter),
+            [
+                {
+                    from: 1,
+                    to: 100,
+                    breakpoint: 'more'
+                },
+                {
+                    from: 101,
+                    to: 200,
+                    breakpoint: 'more'
+                },
+                {
+                    from: 201,
+                    to: 300,
+                    breakpoint: 'more'
+                },
+                {
+                    from: 301,
+                    to: 350,
+                    breakpoint: 'end'
+                }
+            ]
+        )
         .subscribe(
-            console.log,
+            () => {},
             (err) => {console.log(err); throw err;},
             () => {test.done()}
         );
         emitter.emit('next');
     },
-    main: function(test) {
-        test.expect(0);
-        Rx.Observable.of(this.dummyCollection.find({}).batchSize(100))
-        .mergeMap(lib.cursor$(R.__, 100, 100))
+    iteratorWithBatchSizeModuloZero: function(test) {
+        test.expect(351);
+        const emitter = new lib.CursorEmitter();
+        Rx.Observable.of(this.dummyCollection.find({}).batchSize(350))
+        .mergeMap(lib.iterator$(R.__, 350,  emitter))
+        .scan(
+            testIteratorScanCallback(test, emitter),
+            [
+                {
+                    from: 1,
+                    to: 350,
+                    breakpoint: 'end'
+                }
+            ]
+        )
         .subscribe(
-            console.log,
+            () => {},
             (err) => {console.log(err); throw err;},
             () => {test.done()}
         );
-    }*/,
-    mapFn: function(test) {
-        test.expect(0);
-        test.done();
+        emitter.emit('next');
     },
-    noBuffer: function(test) {
-        test.expect(0);
-        test.done();
+    iteratorColdness: function(test) {
+        test.expect(702);
+
+        const testIterator$ = (cursor) => {
+            return Rx.Observable.create((subscriber) => {
+                const emitter = new lib.CursorEmitter();
+
+                lib.iterator$(cursor, 350,  emitter)
+                    .scan(
+                        testIteratorScanCallback(test, emitter),
+                        [
+                            {
+                                from: 1,
+                                to: 350,
+                                breakpoint: 'end'
+                            }
+                        ]
+                    )
+                    .subscribe(
+                        subscriber.next.bind(subscriber),
+                        subscriber.error.bind(subscriber),
+                        subscriber.complete.bind(subscriber)
+                    )
+
+                emitter.emit('next');
+            });
+        }
+
+        Rx.Observable.of(this.dummyCollection.find({}).batchSize(350))
+        .mergeMap((cursor) => {
+            return Rx.Observable.concat(
+                testIterator$(cursor),
+                testIterator$(cursor)
+            );
+        })
+        .subscribe(
+            () => {},
+            (err) => {console.log(err); throw err;},
+            () => {test.done()}
+        );
     }
 }
