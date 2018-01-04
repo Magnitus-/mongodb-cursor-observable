@@ -62,6 +62,27 @@ function testCursorScanCallback(test) {
     }
 }
 
+function testBufferedCursorScanCallback(test) {
+    return (acc, docs) => {
+        let now = new Date();
+        let expectedLength = R.min(acc.batchSize, acc.to - acc.from + 1)
+        if(acc.from > 1) {
+            test.ok((now.getTime() - acc.lastNow.getTime()) >= acc.batchInterval, "Ensure " + acc.batchInterval + "ms delay is respected between batches")
+        }
+        test.ok(docs.length === expectedLength, "Ensure that batch of document of length " + docs.length + " === " + expectedLength)
+
+        docs.reduce((acc, doc) => {
+            test.ok(doc === acc, "Ensure that doc of value " + doc + " === " + acc);
+            return acc + 1
+        }, acc.from)
+
+        return R.compose(
+            R.over(R.lensProp('from'), R.add(docs.length)),
+            R.assoc('lastNow', now)
+        )(acc)
+    }
+}
+
 module.exports = {
     setUp: function (callback) {
         Rx.Observable.fromPromise(
@@ -246,11 +267,20 @@ module.exports = {
             );
     },
     bufferedCursor: function(test) {
-        test.expect(0);
+        test.expect(357);
         Rx.Observable.of(this.dummyCollection.find({}).batchSize(100))
-        .mergeMap(lib.bufferedCursor$(R.__, 100,  0))
+        .mergeMap(lib.bufferedCursor$(R.__, 100,  100, R.prop('_id')))
+        .scan(
+            testBufferedCursorScanCallback(test),
+            {
+                from: 1,
+                to: 350,
+                batchSize: 100,
+                batchInterval: 100
+            }
+        )
         .subscribe(
-            console.log,
+            () => {},
             (err) => {console.log(err); throw err;},
             () => {test.done()}
         );

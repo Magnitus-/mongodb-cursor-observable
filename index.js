@@ -4,8 +4,6 @@ const EventEmitter = require('events');
 
 class CursorEmitter extends EventEmitter {}
 
-const incrementOrd = R.over(R.lensProp('ord'), R.add(1));
-
 const next$ = R.curry((cursor, batchSize) => {
     return Rx.Observable.create(function (observer) {
         const cursorEvents = new CursorEmitter();

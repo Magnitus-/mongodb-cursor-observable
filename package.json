@@ -35,5 +35,8 @@
     "mongodb": "^3.0.1",
     "nodeunit": "^0.11.2"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "files": [
+      "index.js"
+  ]
 }
