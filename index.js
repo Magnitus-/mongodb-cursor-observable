@@ -71,28 +71,29 @@ const iterator$ = R.curry((cursor, batchSize, cursorEvents) => {
     });
 });
 
-const waitingCursor$ = R.curry((cursor, batchSize, batchInterval, cursorEvents) => {
-    return iterator$(cursor, batchSize, cursorEvents)
-        .do((doc) => {
-            if(doc === 'more') {
-                setTimeout(() => { cursorEvents.emit('next'); }, batchInterval);
-            } else if(doc === 'end') {
-                cursorEvents.emit('complete');
-            }
-        })
-        .filter(R.is(Object))
-});
-
 const cursor$ = R.curry((cursor, batchSize, batchInterval) => {
-    const cursorEvents = new CursorEmitter();
-
     return Rx.Observable.create(function (observer) {
-        waitingCursor$(cursor, batchSize, batchInterval, cursorEvents)
-        .subscribe(
-            observer.next.bind(observer),
-            observer.error.bind(observer),
-            observer.complete.bind(observer)
-        );
+        const cursorEvents = new CursorEmitter();
+
+        iterator$(cursor, batchSize, cursorEvents)
+            .do((doc) => {
+                if(doc === 'more') {
+                    if(batchInterval > 0) {
+                        setTimeout(() => { cursorEvents.emit('next'); }, batchInterval);
+                    } else {
+                        cursorEvents.emit('next');
+                    }
+                } else if(doc === 'end') {
+                    cursorEvents.emit('complete');
+                }
+            })
+            .filter(R.is(Object))
+            .subscribe(
+                observer.next.bind(observer),
+                observer.error.bind(observer),
+                observer.complete.bind(observer)
+            );
+
         cursorEvents.emit('next');
     });
 });

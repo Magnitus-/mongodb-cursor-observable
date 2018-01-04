@@ -48,6 +48,20 @@ function testIteratorScanCallback(test, emitter) {
     }
 }
 
+function testCursorScanCallback(test) {
+    return (acc, doc) => {
+        test.ok(doc._id === acc.from, "Ensure doc._id with current value of " + doc._id + " === " + acc.from);
+        let now = new Date();
+        if(acc.from > 1 && acc.batchSize && acc.batchInterval && (acc.from % acc.batchSize === 1)) {
+            test.ok((now.getTime() - acc.lastNow.getTime()) >= acc.batchInterval, "Ensure " + acc.batchInterval + "ms delay is respected between batches");
+        }
+        return R.compose(
+            R.over(R.lensProp('from'), R.add(1)),
+            R.assoc('lastNow', now)
+        )(acc);
+    }
+}
+
 module.exports = {
     setUp: function (callback) {
         Rx.Observable.fromPromise(
@@ -183,14 +197,60 @@ module.exports = {
         }
 
         Rx.Observable.of(this.dummyCollection.find({}).batchSize(350))
-        .mergeMap((cursor) => {
-            return Rx.Observable.concat(
-                testIterator$(cursor),
-                testIterator$(cursor)
+            .mergeMap((cursor) => {
+                return Rx.Observable.concat(
+                    testIterator$(cursor),
+                    testIterator$(cursor)
+                );
+            })
+            .subscribe(
+                () => {},
+                (err) => {console.log(err); throw err;},
+                () => {test.done()}
+        );
+    },
+    cursor: function(test) {
+        test.expect(350);
+        Rx.Observable.of(this.dummyCollection.find({}).batchSize(100))
+            .mergeMap(lib.cursor$(R.__, 100,  0))
+            .scan(
+                testCursorScanCallback(test),
+                {
+                    from: 1,
+                    to: 350
+                }
+            )
+            .subscribe(
+                () => {},
+                (err) => {console.log(err); throw err;},
+                () => {test.done()}
             );
-        })
+    },
+    cursorWithInterval: function(test) {
+        test.expect(353);
+        Rx.Observable.of(this.dummyCollection.find({}).batchSize(100))
+            .mergeMap(lib.cursor$(R.__, 100,  100))
+            .scan(
+                testCursorScanCallback(test),
+                {
+                    from: 1,
+                    to: 350,
+                    batchSize: 100,
+                    batchInterval: 100
+                }
+            )
+            .subscribe(
+                () => {},
+                (err) => {console.log(err); throw err;},
+                () => {test.done()}
+            );
+    },
+    bufferedCursor: function(test) {
+        test.expect(0);
+        Rx.Observable.of(this.dummyCollection.find({}).batchSize(100))
+        .mergeMap(lib.bufferedCursor$(R.__, 100,  0))
         .subscribe(
-            () => {},
+            console.log,
             (err) => {console.log(err); throw err;},
             () => {test.done()}
         );
